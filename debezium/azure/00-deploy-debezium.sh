@@ -3,51 +3,41 @@
 # Strict mode, fail on any error
 set -euo pipefail
 
-DEBEZIUM_VERSION=2.7
-RESOURCE_GROUP="debezium"
-EVENTHUB_NAMESPACE="debezium"
-EVENTHUB_SCHEMA_HISTORY="schemahistory"
-CONTAINER_NAME="debezium"
-LOCATION="WestUS2"
-
-echo "deploying resource group"
-az group create \
-	--name $RESOURCE_GROUP \
-	--location $LOCATION
 
 echo "deploying eventhubs namespace"
 az eventhubs namespace create \
-	--resource-group $RESOURCE_GROUP \
-	--location $LOCATION \
-	--name $EVENTHUB_NAMESPACE \
+	--resource-group "rg-debezium" \
+	--location "WestUS2" \
+	--name "debezium2" \
 	--enable-kafka=true
 
 echo "deploying schema history event hub"
 az eventhubs eventhub create \
-    --resource-group $RESOURCE_GROUP \
-    --namespace-name $EVENTHUB_NAMESPACE \
-    --name $EVENTHUB_SCHEMA_HISTORY \
+    --resource-group "rg-debezium" \
+    --namespace-name "debezium2" \
+    --name "schemahistory" \
     --partition-count 1 \
     --cleanup-policy Delete \
     --retention-time-in-hours 168 \
     --output none
 
 echo "gathering eventhubs connection string"
-EVENTHUB_CONNECTION_STRING=`az eventhubs namespace authorization-rule keys list --resource-group $RESOURCE_GROUP --name RootManageSharedAccessKey --namespace-name $EVENTHUB_NAMESPACE --output tsv --query 'primaryConnectionString'`
+EVENTHUB_CONNECTION_STRING=`az eventhubs namespace authorization-rule keys list --resource-group "rg-debezium" --name RootManageSharedAccessKey --namespace-name "debezium2" --output tsv --query 'primaryConnectionString'`
+
 
 echo "deploying debezium container"
 az container create \
-	--resource-group $RESOURCE_GROUP \
-	--location $LOCATION \
-	--name $CONTAINER_NAME \
-	--image debezium/connect:${DEBEZIUM_VERSION} \
+	--resource-group "rg-debezium" \
+	--location "WestUS2" \
+	--name "debezium2" \
+	--image debezium/connect:${2.7} \
 	--ports 8083 \
 	--ip-address Public \
 	--os-type Linux \
 	--cpu 2 \
 	--memory 4 \
 	--environment-variables \
-		BOOTSTRAP_SERVERS=${EVENTHUB_NAMESPACE}.servicebus.windows.net:9093 \
+		BOOTSTRAP_SERVERS=${"debezium2"}.servicebus.windows.net:9093 \
 		GROUP_ID=1 \
 		CONFIG_STORAGE_TOPIC=debezium_configs \
 		OFFSET_STORAGE_TOPIC=debezium_offsets \
@@ -67,3 +57,5 @@ az container create \
  
 echo "eventhub connection string"
 echo $EVENTHUB_CONNECTION_STRING
+
+Endpoint=sb://debezium2.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=frtw4l/mR4BHLtUQ7JElDGT15g4Uxhsyo+AEhHoS+V8=
